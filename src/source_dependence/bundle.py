@@ -2,6 +2,7 @@
 
 Uses maintained crypto libraries. Specifies exact bytes hashed. Does not invent cryptography.
 Successful verification of integrity does not imply lineage independently established.
+Reproducibility requires actual re-execution of a supported engine version; it is not inferred from hash match.
 """
 
 from __future__ import annotations
@@ -10,10 +11,6 @@ import hashlib
 import json
 from pathlib import Path
 from typing import Any
-
-from cryptography.hazmat.primitives import hashes
-from cryptography.hazmat.primitives.serialization import Encoding
-
 
 BUNDLE_VERSION = "reconciliation.bundle.v1"
 
@@ -38,43 +35,50 @@ def write_bundle(
         "report": report,
         "integrity": integrity_material or {},
     }
-    # Hash of canonical form excluding integrity for the content commitment
     content_hash = hashlib.sha256(_canonical({k: v for k, v in bundle.items() if k != "integrity"})).hexdigest()
     bundle["integrity"]["content_sha256"] = content_hash
     return bundle
 
 
 def verify_bundle(path: Path | dict) -> dict:
-    """Verify and label each property separately."""
+    """Verify and label each property separately.
+
+    Statuses: PASS, FAIL, NOT_PRESENT, NOT_CHECKED, UNSUPPORTED, MISSING_INPUT.
+    analysis_reproducible is NOT_RUN until an explicit re-execution path succeeds.
+    """
     if isinstance(path, Path):
         bundle = json.loads(path.read_text())
     else:
         bundle = path
 
     result = {
-        "bytes_match_manifest": False,
-        "signature_verified": "not_checked_or_unknown_policy",
-        "timestamp_verified": "not_present_or_not_checked",
-        "analysis_reproducible": False,
-        "lineage_independently_established": False,  # never implied
+        "schema_version_valid": bundle.get("version") == BUNDLE_VERSION,
+        "envelope_commitment_consistent": False,
+        "artifact_bytes_verified": "NOT_CHECKED",
+        "signature_verified": "NOT_CHECKED",
+        "timestamp_verified": "NOT_PRESENT",
+        "analysis_reproducible": "NOT_RUN",
+        "lineage_independently_established": False,
         "notes": [],
+        "exit_code_recommended": 0,
     }
 
-    # Content integrity
     expected = bundle.get("integrity", {}).get("content_sha256")
     content = {k: v for k, v in bundle.items() if k != "integrity"}
     actual = hashlib.sha256(_canonical(content)).hexdigest()
-    result["bytes_match_manifest"] = expected == actual
-    if not result["bytes_match_manifest"]:
-        result["notes"].append("Content hash mismatch; bytes do not match commitment.")
+    result["envelope_commitment_consistent"] = expected == actual
+    if not result["envelope_commitment_consistent"]:
+        result["notes"].append("Envelope content hash mismatch.")
+        result["exit_code_recommended"] = 1
+    else:
+        result["notes"].append("Envelope hash matches; this is self-consistency only, not origin authentication.")
 
-    # Signature: placeholder - would use cryptography or sigstore under explicit policy
     if "signature" in bundle.get("integrity", {}):
-        result["signature_verified"] = "signature_present_but_trust_policy_not_applied_in_v0.1"
-        result["notes"].append("Signature present; verification requires explicit trust policy and maintained libraries.")
+        result["signature_verified"] = "NOT_CHECKED"
+        result["notes"].append("Signature material present but no trust policy applied in this verifier version.")
 
-    # Reproducibility: if analytical component available, re-run and compare; for v0.1 report match if hash ok
-    result["analysis_reproducible"] = result["bytes_match_manifest"]  # simplified; full re-execution in tests
+    result["analysis_reproducible"] = "NOT_RUN"
+    result["notes"].append("Analysis re-execution not performed; status is NOT_RUN until a supported engine is invoked and report compared.")
 
-    result["notes"].append("Integrity verification does not establish independent lineage or real-world truth.")
+    result["notes"].append("No check above establishes independent lineage or real-world claim truth.")
     return result
