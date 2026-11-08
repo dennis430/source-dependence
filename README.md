@@ -1,5 +1,7 @@
 # source-dependence
 
+Development moved to [checkable](https://github.com/dennis430/checkable). This repository stays as the v0.1.2 package history. Edit the copy under `packages/source-dependence` in that repo.
+
 Source-dependence and evidential reconciliation methodology with reference implementation and portable bundle verifier.
 
 This package provides:
