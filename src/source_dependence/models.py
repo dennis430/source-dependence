@@ -61,7 +61,14 @@ class Relationship(BaseModel):
     from_id: str  # observation or source
     to_id: str
     label: RelationLabel
-    kind: Literal["derivation", "shared_origin", "citation", "infrastructure", "other"] = "other"
+    kind: Literal[
+        "derivation",
+        "shared_origin",
+        "citation",
+        "infrastructure",
+        "contradiction",
+        "other",
+    ] = "other"
     supporting_refs: list[str] = Field(default_factory=list)
     asserted_by: Optional[str] = None  # who declared/inferred
 

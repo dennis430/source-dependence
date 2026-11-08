@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "source-dependence"
-version = "0.1.0"
+version = "0.1.2"
 description = "Source-dependence and evidential reconciliation methodology and portable verifier"
 authors = [{name = "Dennis Liu"}]
 license = {text = "MIT"}

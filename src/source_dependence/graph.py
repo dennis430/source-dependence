@@ -60,46 +60,68 @@ def analyze(
         u for u, v, k, d in graph.edges(keys=True, data=True)
         if v == claim_id and graph.nodes[u].get("kind") == "observation"
     ]
-
+    obs_ids = set(obs_nodes)
     origin_groups = set()
     unresolved = []
     contradictions = []
     unknowns = []
-    sensitivity = {}
+    group_members: dict[str, list[str]] = {}
 
-    for oid in set(obs_nodes):
+    for oid in obs_ids:
         obs = graph.nodes[oid]["data"]
         if obs.source_id and obs.source_id in graph:
             src = graph.nodes[obs.source_id]["data"]
             if src.origin_group:
                 origin_groups.add(src.origin_group)
+                group_members.setdefault(src.origin_group, []).append(oid)
             else:
                 unknowns.append(f"Unknown origin for source {obs.source_id} of {oid}")
         else:
             unknowns.append(f"No source for observation {oid}")
 
         for _, _, k, edata in graph.edges(oid, keys=True, data=True):
-            if edata.get("label") == "documented" and edata.get("kind") == "derivation":
-                pass  # traced
+            if edata.get("kind") == "contradiction":
+                contradictions.append(f"{oid} key={k} contradicts {edata.get('label')}")
             if edata.get("label") in ("unknown", "disputed", "inferred"):
                 unresolved.append(f"{oid} key={k} label={edata.get('label')}")
 
     sccs = [c for c in nx.strongly_connected_components(graph) if len(c) > 1]
-    if sccs:
-        unknowns.append(f"Potential circular support in SCCs of size >1: {len(sccs)} component(s)")
+    circular_count = len(sccs)
+    if circular_count:
+        unknowns.append(f"Potential circular support in SCCs of size >1: {circular_count} component(s)")
 
     disputed_count = sum(1 for _, _, _, d in graph.edges(keys=True, data=True) if d.get("label") == "disputed")
-    sensitivity["disputed_edge_count"] = disputed_count
-    sensitivity["note"] = "Full sensitivity requires calling analyze after removing disputed edges"
+    shared_origin_collapses = any(len(members) > 1 for members in group_members.values())
+    sensitivity = {
+        "naive_observation_count": len(obs_ids),
+        "distinct_documented_origin_group_count": len(origin_groups),
+        "shared_origin_collapses_naive_count": shared_origin_collapses,
+        "circular_component_count": circular_count,
+        "contradiction_edge_count": len(contradictions),
+        "disputed_edge_count": disputed_count,
+        "note": (
+            "shared_origin_collapses_naive_count is true only when two observations "
+            "carry the same documented origin group. Unknown lineage is not treated as shared origin. "
+            "Exact text deduplication is not performed here."
+        ),
+    }
+    assumption_conditioned: dict[str, Any] = {}
+    if assumptions:
+        assumption_conditioned = {
+            "assumption_ids": [a.id for a in assumptions],
+            "applied": False,
+            "note": "Assumptions are recorded. This version does not recompute the profile with them removed.",
+        }
 
     profile = SupportProfile(
         claim_id=claim_id,
-        observations_counted=len(set(obs_nodes)),
+        observations_counted=len(obs_ids),
         documented_origin_groups=sorted(origin_groups),
         unresolved_relationships=unresolved,
+        assumption_conditioned_results=assumption_conditioned,
+        sensitivity=sensitivity,
         contradictions=contradictions,
         unknowns=unknowns,
-        sensitivity=sensitivity,
         notes=[
             "Root count is not a count of statistically independent observations.",
             "Documented derivation paths are traced separately from caller-supplied origin groups.",
