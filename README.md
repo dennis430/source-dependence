@@ -15,21 +15,21 @@ Experimental v0.1.2. The gates in `KILL_CRITERIA.md` are not declared passed. Ma
 
 ## Install
 
-This works today, without PyPI:
+Clone, then install. The examples are files in the checkout, not files inside the wheel.
 
 ```bash
-pip install "git+https://github.com/dennis430/source-dependence.git@v0.1.2"
-```
-
-From a checkout:
-
-```bash
+git clone https://github.com/dennis430/source-dependence.git
+cd source-dependence
 pip install -e .
 ```
 
-PyPI publishing is prepared in `.github/workflows/publish.yml` and is not live. The GitHub release `v0.1.2` carries the sdist and wheel built from this tag. `pip install source-dependence` will 404 until that publisher is configured.
+The tag `v0.1.2` is the same tree plus the release notes. The wheel and sdist on that release install the library only.
+
+PyPI publishing is prepared in `.github/workflows/publish.yml` and is not live. `pip install source-dependence` will 404 until that publisher is configured.
 
 ## Quick start
+
+From the checkout:
 
 ```bash
 source-dependence analyze examples/duplicate.json
